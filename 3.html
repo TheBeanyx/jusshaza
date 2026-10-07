@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Biatorbágy ViaBusz - 3-as busz menetrend</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Egyedi görgetősáv a táblázathoz */
+        ::-webkit-scrollbar {
+            height: 6px;
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans antialiased min-h-screen flex flex-col justify-between">
+
+    <!-- FEJLÉC -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+            <div class="flex items-center space-x-4">
+                <a href="menetrend.html" class="text-slate-500 hover:text-slate-800 text-sm font-medium transition flex items-center space-x-1">
+                    <span>← Menetrendek</span>
+                </a>
+                <div class="h-5 w-px bg-slate-200"></div>
+                <div class="flex items-center space-x-3">
+                    <div class="w-8 h-8 flex items-center justify-center bg-yellow-600 text-white font-bold text-sm rounded-lg">3</div>
+                    <div>
+                        <h1 class="font-semibold text-slate-900 text-base leading-tight">3-as busz menetrend</h1>
+                        <p class="text-xs text-slate-500">Vasútállomás > Iharos > Szarvasugrás > Vasútállomás</p>
+                    </div>
+                </div>
+            </div>
+            <div class="flex items-center space-x-3">
+                <div id="statusBadge" class="text-xs bg-rose-50 text-rose-700 px-3 py-1.5 rounded-md border border-rose-200 font-medium hidden sm:flex items-center space-x-1.5">
+                    <span id="statusDot" class="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
+                    <span>Pontos idő: <strong id="currentTimeDisplay" class="font-mono">--:--</strong></span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- FŐ TARTALOM -->
+    <main class="max-w-[96%] mx-auto px-2 py-8 w-full flex-grow">
+        <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+            <div class="mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
+                <div>
+                    <h2 class="text-lg font-semibold text-slate-900">Menetrend</h2>
+                    <p class="text-xs text-slate-500">A piros vonal mutatja az aktuális időbeli haladást a járatok között.</p>
+                </div>
+                <div class="text-xs text-slate-600 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
+                    💡 Tipp: Görgess vízszintesen a többi járat megtekintéséhez.
+                </div>
+            </div>
+
+            <!-- Táblázat Konténer -->
+            <div class="overflow-x-auto relative border border-slate-200 rounded-xl">
+                <table id="scheduleTable" class="w-full text-left border-collapse whitespace-nowrap">
+                    <!-- JavaScript generálja -->
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- MODÁLIS ABLAK -->
+    <div id="stopModal" class="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs hidden flex items-center justify-center p-4">
+        <div class="bg-white border border-slate-200 rounded-2xl p-6 max-w-md w-full shadow-xl relative space-y-4">
+            <button onclick="closeModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center transition font-bold">✕</button>
+            <div class="flex items-center space-x-3">
+                <span class="w-8 h-8 flex items-center justify-center rounded-full bg-yellow-50 text-yellow-600 font-bold text-sm border border-yellow-200" id="modalStopIndex">1</span>
+                <div>
+                    <h3 id="modalStopName" class="text-base font-semibold text-slate-900">Állomás neve</h3>
+                    <p class="text-xs text-slate-500">Kiválasztott megállóhely indulási időpontjai</p>
+                </div>
+            </div>
+            <div class="pt-3 border-t border-slate-100">
+                <p class="text-xs text-slate-500 mb-2">Ebből a megállóból induló buszok:</p>
+                <div id="modalStopTimes" class="flex flex-wrap gap-2 max-h-60 overflow-y-auto p-1">
+                    <!-- Időpontok listája -->
+                </div>
+            </div>
+            <div class="pt-2 flex justify-end">
+                <button onclick="closeModal()" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-medium transition">Bezárás</button>
+            </div>
+        </div>
+    </div>
+
+    <footer class="w-full text-center py-4 text-xs text-slate-400 bg-white border-t border-slate-200 mt-12">
+        <p>Minden jog fenntartva | A változás jogát fenntartjuk ©</p>
+    </footer>
+
+    <!-- SCRIPT LOGIKA -->
+    <script>
+        const busData = {
+            "id": "3",
+            "name": "3-as busz menetrend",
+            "route": "Vasútállomás > Iharos > Vasútállomás",
+            "stops": [
+                { "name": "Vasútállomás", "time": ["6:50", "7:41", "9:26", "11:26", "13:13", "14:13", "15:13", "16:08", "17:33"] },
+                { "name": "Ritsmann Iskola", "time": ["6:51", "7:42", "9:27", "11:27", "13:14", "14:14", "15:14", "16:09", "17:34"] },
+                { "name": "Meggyfa utca", "time": ["6:53", "7:44", "9:29", "11:29", "13:16", "14:16", "15:16", "16:11", "17:36"] },
+                { "name": "Iharos utca", "time": ["6:55", "7:46", "9:31", "11:31", "13:18", "14:18", "15:18", "16:13", "17:38"] },
+                { "name": "Nimród köz", "time": ["6:57", "7:48", "9:32", "11:32", "13:19", "14:19", "15:19", "16:14", "17:39"] },
+                { "name": "Nimród utca", "time": ["6:59", "7:50", "9:33", "11:33", "13:20", "14:20", "15:20", "16:15", "17:40"] },
+                { "name": "Csodaszarvas utca", "time": ["7:01", "7:52", "9:34", "11:34", "13:21", "14:21", "15:21", "16:16", "17:41"] },
+                { "name": "Ritsmann Iskola (Ellenirány)", "time": ["7:03", "7:54", "9:36", "11:36", "13:23", "14:23", "15:23", "16:18", "17:43"] },
+                { "name": "Vasútállomás", "time": ["7:05", "7:56", "9:38", "11:38", "13:25", "14:25", "15:25", "16:20", "17:45"] }
+            ]
+        };
+
+        window.addEventListener('DOMContentLoaded', () => {
+            updateRealTimeClock();
+            setInterval(updateRealTimeClock, 1000);
+        });
+
+        function timeToMinutes(tStr) {
+            const parts = tStr.split(':');
+            return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+        }
+
+        function updateRealTimeClock() {
+            const now = new Date();
+            const hours = String(now.getHours());
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const currentTimeStr = `${hours}:${minutes}`;
+
+            const clockEl = document.getElementById('currentTimeDisplay');
+            if (clockEl) clockEl.innerText = currentTimeStr;
+
+            renderTable(currentTimeStr);
+        }
+
+        function renderTable(currentTimeStr) {
+            const table = document.getElementById('scheduleTable');
+            table.innerHTML = '';
+
+            const maxTrips = Math.max(...busData.stops.map(s => s.time.length));
+            const currentTotalMins = timeToMinutes(currentTimeStr);
+
+            // Fejléc
+            let headerHtml = `<thead class="bg-slate-100 border-b border-slate-200 text-xs text-slate-600 uppercase tracking-wider"><tr>`;
+            headerHtml += `<th class="py-3 px-4 sticky left-0 bg-slate-100 z-20 shadow-[1px_0_0_#e2e8f0]">Megállóhely</th>`;
+
+            for (let i = 0; i < maxTrips; i++) {
+                headerHtml += `<th class="py-3 px-3 text-center font-mono">Járat ${i + 1}</th>`;
+            }
+            headerHtml += `</tr></thead>`;
+
+            // Törzs
+            let bodyHtml = `<tbody class="divide-y divide-slate-100 text-sm">`;
+            
+            busData.stops.forEach((stop, index) => {
+                let targetColIndex = -1;
+                let allPassed = true;
+
+                for (let i = 0; i < stop.time.length; i++) {
+                    const t = stop.time[i];
+                    if (t && timeToMinutes(t) >= currentTotalMins) {
+                        targetColIndex = i;
+                        allPassed = false;
+                        break;
+                    }
+                }
+
+                if (allPassed) {
+                    targetColIndex = stop.time.length; 
+                }
+
+                let rowClasses = "hover:bg-slate-50/80 transition";
+                let thClasses = "py-3 px-4 font-medium text-slate-800 sticky left-0 bg-white z-10 shadow-[1px_0_0_#e2e8f0] text-left";
+
+                bodyHtml += `<tr class="${rowClasses}">`;
+                bodyHtml += `<th class="${thClasses}">
+                    <button onclick="openStopModal(${index}, '${currentTimeStr}')" class="hover:text-yellow-600 transition flex items-center space-x-2 text-left w-full group">
+                        <span class="w-5 h-5 flex items-center justify-center rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold border border-slate-200 group-hover:bg-yellow-50 group-hover:text-yellow-600 group-hover:border-yellow-200 transition">${index + 1}</span>
+                        <span class="underline decoration-slate-300 underline-offset-4">${stop.name}</span>
+                    </button>
+                </th>`;
+
+                for (let i = 0; i < maxTrips; i++) {
+                    const t = stop.time[i] || '';
+                    const isBeforeTarget = (i === targetColIndex);
+                    const isAfterAll = (targetColIndex === stop.time.length && i === stop.time.length - 1);
+
+                    let cellClass = "py-3 px-3 text-center font-mono text-xs text-slate-600";
+                    let extraHtml = "";
+
+                    if (isBeforeTarget && t) {
+                        cellClass = "py-3 px-3 text-center font-mono text-xs bg-rose-50/70 border-x border-rose-200 text-rose-700 font-semibold relative";
+                        extraHtml += `<span class="absolute top-0 bottom-0 left-0 w-1 bg-rose-500"></span>`;
+                    } else if (isAfterAll && t) {
+                        cellClass = "py-3 px-3 text-center font-mono text-xs bg-rose-50/70 border-r border-rose-200 text-rose-700 font-semibold relative";
+                        extraHtml += `<span class="absolute top-0 bottom-0 right-0 w-1 bg-rose-500"></span>`;
+                    }
+
+                    bodyHtml += `<td class="${cellClass}">`;
+                    bodyHtml += extraHtml;
+                    bodyHtml += `${t || '-'}</td>`;
+                }
+                bodyHtml += `</tr>`;
+            });
+            bodyHtml += `</tbody>`;
+
+            table.innerHTML = headerHtml + bodyHtml;
+        }
+
+        function openStopModal(stopIndex, currentTimeStr) {
+            const stop = busData.stops[stopIndex];
+            document.getElementById('modalStopIndex').innerText = stopIndex + 1;
+            document.getElementById('modalStopName').innerText = stop.name;
+
+            const container = document.getElementById('modalStopTimes');
+            container.innerHTML = '';
+
+            const currentTotalMins = timeToMinutes(currentTimeStr);
+
+            if (stop.time && stop.time.length > 0) {
+                stop.time.forEach(t => {
+                    if (!t) return;
+                    const tripMins = timeToMinutes(t);
+                    const isNext = tripMins >= currentTotalMins;
+                    
+                    container.innerHTML += `<span class="font-mono text-xs px-3 py-1.5 rounded-md border ${isNext ? 'bg-rose-50 text-rose-700 border-rose-200 font-bold' : 'bg-slate-50 text-slate-400 border-slate-200 line-through'}">${t}</span>`;
+                });
+            } else {
+                container.innerHTML = '<span class="text-xs text-slate-400 italic">Nincs indulási időpont.</span>';
+            }
+
+            document.getElementById('stopModal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('stopModal').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
